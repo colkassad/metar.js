@@ -1,12 +1,13 @@
 (function() {
 
-var parseRVR = require("./rvr");
+//var parseRVR = require("./rvr");
+
 // http://www.met.tamu.edu/class/metar/metar-pg10-sky.html
 // https://ww8.fltplan.com/AreaForecast/abbreviations.htm
 // http://en.wikipedia.org/wiki/METAR
 // http://www.unc.edu/~haines/metar.html
 
-var TYPES = [ 'METAR', 'SPECI' ];
+var TYPES = [ 'METAR', 'SPECI'];
 
 var CLOUDS = {
     NCD: "no clouds",
@@ -87,8 +88,13 @@ function asInt(s) {
 }
 
 
-
 function METAR(metarString) {
+//function METAR(metarString, options) {
+    /*if (options) {
+        if (options.type) {
+            this.reportType = options.type;
+        }
+    }*/
     this.fields = metarString.split(" ").map(function(f) {
         return f.trim();
     }).filter(function(f) {
@@ -108,6 +114,7 @@ METAR.prototype.peek = function() {
     return this.fields[this.i+1];
 };
 
+
 METAR.prototype.parseType = function() {
     var token = this.peek();
 
@@ -118,6 +125,7 @@ METAR.prototype.parseType = function() {
         this.result.type = 'METAR';
     }
 };
+
 
 METAR.prototype.parseStation = function() {
     this.next();
@@ -131,6 +139,22 @@ METAR.prototype.parseDate = function() {
     d.setUTCHours(asInt(this.current.slice(2,4)));
     d.setUTCMinutes(asInt(this.current.slice(4,6)));
     this.result.time = d;
+};
+
+METAR.prototype.tafParseValidity = function() {
+    this.next();
+    var from = new Date();
+    from.setUTCDate(asInt(this.current.slice(0,2)));
+    from.setUTCHours(asInt(this.current.slice(2,2)));
+    this.result.validFrom = from;
+    var to = new Date();
+    from.setUTCDate(asInt(this.current.slice(5,2)));
+    from.setUTCHours(asInt(this.current.slice(7,2)));
+    this.result.validTo = to;
+};
+
+METAR.prototype.parseValidPeriod = function() {
+
 };
 
 METAR.prototype.parseAuto = function() {
@@ -165,8 +189,8 @@ METAR.prototype.parseWind = function() {
 
     var direction = this.current.slice(0,3);
     if (direction === "VRB") {
-        this.result.wind.direction = "VRB";
-        this.result.wind.variation = true;
+        this.result.wind.direction = -1; //variable wind direction
+        //this.result.wind.variation = true;
     }
     else {
         this.result.wind.direction = asInt(direction);
@@ -212,11 +236,12 @@ METAR.prototype.parseVisibility = function() {
     // TODO: Direction too. I've not seen it in finnish METARs...
 };
 
+
 METAR.prototype.parseRunwayVisibility = function() {
     if (this.result.cavok) return;
     if (this.peek().match(/^R[0-9]+/)) {
         this.next();
-        this.result.rvr = parseRVR(this.current);
+        //this.result.rvr = parseRVR(this.current);
         // TODO: peek is more than one RVR in METAR and parse
     }
 };
@@ -294,10 +319,15 @@ METAR.prototype.parseAltimeter  = function() {
 
 METAR.prototype.parse = function() {
     this.parseType();
+    this.parseCorrection(); //found some strings with COR as the first token
     this.parseStation();
     this.parseDate();
     this.parseAuto();
-    this.parseCorrection();
+    this.parseCorrection(); //leave this?
+    /*
+    if (this.reportType === "TAF") {
+        this.parseValidity();
+    }*/
     this.parseWind();
     this.parseCavok();
     this.parseVisibility();
@@ -309,8 +339,9 @@ METAR.prototype.parse = function() {
 };
 
 
-
 function parseMETAR(metarString) {
+//function parseMETAR(metarString, options) {
+    //var m = new METAR(metarString, options);
     var m = new METAR(metarString);
     m.parse();
     return m.result;
